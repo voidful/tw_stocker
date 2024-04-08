@@ -1,0 +1,4 @@
+twstock
+vectorbt
+lxml
+yfinance

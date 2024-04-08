@@ -1,0 +1,33 @@
+name: Update Data
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 每天UTC時間6點執行，即UTC+8時間下午2點
+
+jobs:
+  update-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Update data
+        run: python update.py
+
+      - name: Commit and push if changes
+        run: |
+          git config --global user.email "voidful.stack@gmail.com"
+          git config --global user.name "Voidful"  # 設定Git用戶名
+          git add -A
+          git commit -m "Automated data update" -a || echo "No changes to commit"
+          git push
