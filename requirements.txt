@@ -2,3 +2,4 @@ twstock
 vectorbt
 lxml
 yfinance
+fta
