@@ -14,7 +14,7 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
     today = datetime.now()
 
     if os.path.exists(csv_path):
-        data = pd.read_csv(csv_path)
+        data = pd.read_csv(csv_path, header=0)
         if not data.empty:
             last_record_date = pd.to_datetime(data['Datetime'].iloc[-1])
             start_date = last_record_date + timedelta(minutes=5)
@@ -39,9 +39,9 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
     new_data = yf_data.get()
 
     if os.path.exists(csv_path):
-        new_data.to_csv(csv_path, mode='a', header=False, index=False)
+        new_data.to_csv(csv_path, mode='a')
     else:
-        new_data.to_csv(csv_path, index=False)
+        new_data.to_csv(csv_path)
 
     return new_data
 

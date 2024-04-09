@@ -35,7 +35,8 @@ def get_past_x_days(stock_num, days=59):
         start=start_date_str + " 08:30:00 +0800",
         end=end_date_str + " 13:30:00 +0800",
         interval='5m',
-        missing_index='drop'
+        missing_index='raise',
+        missing_columns='raise'
     )
 
     data = yf_data.get()
