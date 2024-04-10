@@ -16,10 +16,15 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
     if os.path.exists(csv_path):
         data = pd.read_csv(csv_path, header=0)
         if not data.empty:
-            last_record_date = pd.to_datetime(data['Datetime'].iloc[-1])
-            start_date = last_record_date + timedelta(minutes=5)
+            try:
+                last_record_date = pd.to_datetime(data['Datetime'].iloc[-1])
+                start_date = last_record_date + timedelta(minutes=5)
+            except:
+                start_date = today - timedelta(days=59)
+                pass
         else:
             start_date = today - timedelta(days=59)
+
     else:
         start_date = today - timedelta(days=59)
 

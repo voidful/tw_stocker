@@ -139,3 +139,7 @@ Datetime,Open,High,Low,Close,Volume,Dividends,Stock Splits
 Datetime,Open,High,Low,Close,Volume,Dividends,Stock Splits
 2024-04-09 04:45:00+00:00,119.5,119.5,119.5,119.5,0,0.0,0.0
 2024-04-09 04:55:00+00:00,119.0,119.0,119.0,119.0,1000,0.0,0.0
+Datetime,Open,High,Low,Close,Volume,Dividends,Stock Splits
+2024-04-09 04:45:00+00:00,119.5,119.5,119.5,119.5,0,0.0,0.0
+2024-04-09 04:55:00+00:00,119.0,119.0,119.0,119.0,0,0.0,0.0
+2024-04-10 04:15:00+00:00,119.5,121.0,119.5,121.0,10000,0.0,0.0
