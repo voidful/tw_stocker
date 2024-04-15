@@ -52,6 +52,6 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
 
 
 for k, v in codes.items():
-    if v.market == '上市' and v.type == '股票':
+    if v.market == '上市' and (v.type == '股票' or v.type == 'ETF'):
         new_data = get_data_since_last_record(k)
         print(f"Updated data for {k}")

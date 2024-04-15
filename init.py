@@ -44,6 +44,6 @@ def get_past_x_days(stock_num, days=59):
 
 
 for k, v in codes.items():
-    if v.market == '上市' and v.type == '股票':
+    if v.market == '上市' and (v.type == '股票' or v.type == 'ETF'):
         get_past_x_days(k)
         print(v)
