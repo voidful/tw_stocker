@@ -24,7 +24,7 @@ url = "https://raw.githubusercontent.com/voidful/tw_stocker/main/data/2330.csv"
 df = pd.read_csv(url, index_col='Datetime')
 
 ta = fta.TA_Features()
-df_full = ta.get_all_pandas_ta_indicators(df)
+df_full = ta.get_all_indicators(df)
 print(df_full)
 ```
 
@@ -41,7 +41,7 @@ df = pd.read_csv(url, index_col='Datetime')
 
 
 ta = fta.TA_Features()
-df_full = ta.get_all_pandas_ta_indicators(df)
+df_full = ta.get_all_indicators(df)
 
 PARAMETER = {
     "delay": 15,
@@ -67,7 +67,7 @@ df = pd.read_csv(url, index_col='Datetime')
 
 
 ta = fta.TA_Features()
-df_full = ta.get_all_pandas_ta_indicators(df)
+df_full = ta.get_all_indicators(df)
 
 PARAMETER = {
     "delay": 15,
@@ -102,7 +102,7 @@ df = pd.read_csv(url, index_col='Datetime')
 
 
 ta = fta.TA_Features()
-df_full = ta.get_all_pandas_ta_indicators(df)
+df_full = ta.get_all_indicators(df)
 
 PARAMETER = {
     "delay": 15,
