@@ -4,7 +4,7 @@ import numpy as np
 import fta
 from strategy.dynamic_delay import trade
 
-url = "https://raw.githubusercontent.com/voidful/tw_stocker/main/data/0050.csv"
+url = "https://raw.githubusercontent.com/voidful/tw_stocker/main/data/2330.csv"
 df = pd.read_csv(url, index_col='Datetime')
 
 
@@ -12,7 +12,7 @@ ta = fta.TA_Features()
 df_full = ta.get_all_indicators(df)
 
 PARAMETER = {
-    "delay": 15,
+    "delay": 54,
     "initial_money": 10000,
     "max_buy": 10,
     "max_sell": 10,
