@@ -1,7 +1,7 @@
 def trade(real_movement, adx, rsi, atr, investment_amount_base,
           adx_threshold=10, rsi_lower_bound=45, rsi_upper_bound=65, atr_threshold=0.1,
           investment_interval=1, fee_rate=0.001425, slippage=0.0005,
-          initial_money=10000, print_log=True):
+          initial_money=10000, print_log=False):
     """
     持續買進策略 (基於技術指標優化)
 

@@ -2,6 +2,14 @@
 
 每天更新的台股歷史資料庫
 
+<div style="border: 2px solid #f0f0f0; border-radius: 8px; padding: 10px; width: 300px;">
+    <h2>Stock Recommendation</h2>
+    <p>Date: <strong>2024-04-14</strong></p>
+    <p>Recommended Action: <strong>Buy</strong></p>
+    <p>Stock: <strong>TSMC</strong></p>
+    <p>Price: <strong>$100</strong></p>
+</div>
+
 ## 使用方式，以2330為例，可以換成自己需要的股票
 
 ```python

@@ -4,7 +4,7 @@ import pandas as pd
 import fta
 from tqdm import tqdm
 
-from strategy.dynamic_delay import trade
+from strategy.just_keep_buying_with_technicals import trade
 
 
 def recommend_stock(url, parameters):
