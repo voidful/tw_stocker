@@ -35,6 +35,8 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
 
     yf_data = vbt.YFData.download(
         f"{stock_num}.TW",
+        tz_convert='Asia/Taipei',
+        tz_localize='Asia/Taipei',
         start=start_date_str,
         end=end_date_str,
         interval='5m',
@@ -44,7 +46,7 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
     new_data = yf_data.get()
 
     if os.path.exists(csv_path):
-        new_data.to_csv(csv_path, mode='a')
+        new_data.to_csv(csv_path, mode='a', header=False)
     else:
         new_data.to_csv(csv_path)
 

@@ -32,6 +32,8 @@ def get_past_x_days(stock_num, days=59):
 
     yf_data = vbt.YFData.download(
         f"{stock_num}.TW",
+        tz_convert='Asia/Taipei',
+        tz_localize='Asia/Taipei',
         start=start_date_str + " 08:30:00 +0800",
         end=end_date_str + " 13:30:00 +0800",
         interval='5m',
