@@ -50,7 +50,7 @@ PARAMETER = {
     "max_sell": 10,
 }
 
-states_buy, states_sell, states_entry, states_exit, total_gains, invest = trade(df_full.close, **PARAMETER)
+states_buy, states_sell, states_entry, states_exit, total_gains, invest = trade(df_full, **PARAMETER)
 ```
 #### 結果
 ![image](./img/trade_record.png)
@@ -76,7 +76,7 @@ PARAMETER = {
     "max_sell": 10,
 }
 
-states_buy, states_sell, states_entry, states_exit, total_gains, invest = trade(df_full.close, **PARAMETER)
+states_buy, states_sell, states_entry, states_exit, total_gains, invest = trade(df_full, **PARAMETER)
 
 close = df_full['close']
 fig = plt.figure(figsize = (15,5))
@@ -111,7 +111,7 @@ PARAMETER = {
     "max_sell": 10,
 }
 
-states_buy, states_sell, states_entry, states_exit, total_gains, invest = trade(df_full.close, **PARAMETER)
+states_buy, states_sell, states_entry, states_exit, total_gains, invest = trade(df_full, **PARAMETER)
 
 fees = 0 # 假設交易費用為 0
 portfolio_kwargs = dict(size=np.inf, fees=float(fees), freq='5m')
