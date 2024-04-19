@@ -6,3 +6,4 @@ fta
 jinja2
 pandas
 requests
+nlp2
