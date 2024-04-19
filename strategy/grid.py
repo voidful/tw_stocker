@@ -56,10 +56,10 @@ def trade(real_movement, initial_money=10000, rsi_period=14, low_rsi=30, high_rs
                 print(f'{real_movement.index[i]}: attempted to sell, no inventory.')
 
     for i in range(len(real_movement)):
-        if real_movement['rsi'][i] < low_rsi and real_movement['close'][i] < real_movement['lower_band'][i]:
-            buy(i, real_movement['close'][i])
-        elif real_movement['rsi'][i] > high_rsi and real_movement['close'][i] > real_movement['upper_band'][i]:
-            sell(i, real_movement['close'][i])
+        if real_movement['rsi'].iloc[i] < low_rsi and real_movement['close'].iloc[i] < real_movement['lower_band'].iloc[i]:
+            buy(i, real_movement['close'].iloc[i])
+        elif real_movement['rsi'].iloc[i] > high_rsi and real_movement['close'].iloc[i] > real_movement['upper_band'].iloc[i]:
+            sell(i, real_movement['close'].iloc[i])
 
     invest = ((money - initial_money) / initial_money) * 100
     total_gains = money + current_inventory * real_movement['close'].iloc[-1] - initial_money
