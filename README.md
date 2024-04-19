@@ -1,6 +1,8 @@
 # TW Stocker
 
-每天更新的台股歷史資料庫
+每天更新的台股歷史資料庫，計算技術指標，回測然後推薦股票。  
+
+https://voidful.github.io/tw_stocker/stock_report.html
 
 ## 使用方式，以2330為例，可以換成自己需要的股票
 

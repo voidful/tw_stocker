@@ -4,6 +4,7 @@ on:
   schedule:
     # 每天 UTC 時間 16:00 運行 (即 UTC+8 的 00:00)
     - cron: '0 16 * * *'
+  workflow_dispatch:
 
 jobs:
   update-and-commit:
