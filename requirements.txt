@@ -3,3 +3,6 @@ vectorbt
 lxml
 yfinance
 fta
+jinja2
+pandas
+requests

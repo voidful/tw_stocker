@@ -2,7 +2,8 @@ name: Update Data
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # 每天UTC時間6點執行，即UTC+8時間下午2點
+    # 每天 UTC 時間 16:00 運行 (即 UTC+8 的 00:00)
+    - cron: '0 16 * * *'
 
 jobs:
   update-and-commit:
@@ -22,12 +23,12 @@ jobs:
           pip install -r requirements.txt
 
       - name: Update data
-        run: python update.py
+        run: python recommend.py
 
       - name: Commit and push if changes
         run: |
           git config --global user.email "voidful.stack@gmail.com"
           git config --global user.name "Voidful"
           git add -A
-          git commit -m "Automated data update" -a || echo "No changes to commit"
+          git commit -m "Automated stock report update" -a || echo "No changes to commit"
           git push
