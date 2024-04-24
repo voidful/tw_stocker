@@ -7,6 +7,7 @@ import twstock
 
 codes = twstock.codes
 
+
 def get_data_since_last_record(stock_num, base_path='./data/'):
     csv_path = f'{base_path}{stock_num}.csv'
     tz_taipei = pytz.timezone('Asia/Taipei')
@@ -26,8 +27,7 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
     else:
         start_date = today - timedelta(days=59)
 
-    end_date = today - timedelta(minutes=5)  # Reduce by 5 minutes to ensure data availability
-
+    end_date = today + timedelta(hours=14)
     yf_data = vbt.YFData.download(
         f"{stock_num}.TW",
         start=start_date.strftime('%Y-%m-%d %H:%M:%S'),
@@ -44,6 +44,7 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
         new_data.to_csv(csv_path)
 
     return new_data
+
 
 for k, v in codes.items():
     if v.market == '上市' and (v.type == '股票' or v.type == 'ETF'):
