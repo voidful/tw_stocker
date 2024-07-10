@@ -7,3 +7,4 @@ jinja2
 pandas
 requests
 nlp2
+numpy==1.25.2
