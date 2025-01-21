@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 import os
+from time import sleep
+
 import pandas as pd
 import pytz
 import vectorbt as vbt
@@ -60,7 +62,7 @@ def get_data_since_last_record(stock_num, base_path='./data/'):
         new_data.to_csv(csv_path, mode='a', header=False)
     else:
         new_data.to_csv(csv_path)
-
+    sleep(1) # Sleep for 5 seconds to avoid rate limiting
     return new_data
 
 for k, v in codes.items():
