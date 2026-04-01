@@ -17,7 +17,7 @@ pd.read_csv(url)
 Yahoo finance，每隔5分鐘的六十天內資料，會用github action持續更新。
 
 ## Git 歷史與倉庫大小控制
-- 目前僅保留範例資料：`data/2330.csv`，其餘 `data/*.csv` 與 `stock_report.html` 不再追蹤，避免持續膨脹。
+- 專案仰賴 GitHub Actions 持續更新 `data/*.csv` 與 `stock_report.html`，因此這些檔案需保持追蹤。
 - 若需要一次性壓縮整個歷史，可在 Actions 手動執行 `Compact Repository History` workflow：
   - `target_branch`: 要重寫的分支（通常 `main`）
   - `confirm`: 輸入 `COMPACT`

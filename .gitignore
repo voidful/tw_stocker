@@ -6,9 +6,6 @@
 *.iml
 out
 gen
-data/*.csv
-!data/2330.csv
-stock_report.html
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
