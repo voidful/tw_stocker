@@ -43,5 +43,6 @@ jobs:
           git checkout --orphan compact-temp
           git add -A
           git commit -m "chore: compact history snapshot"
-          git branch -M "${TARGET_BRANCH}"
-          git push --force-with-lease origin "${TARGET_BRANCH}"
+          git branch -D "${TARGET_BRANCH}" || true
+          git branch -m compact-temp "${TARGET_BRANCH}"
+          git push --force origin "${TARGET_BRANCH}"
