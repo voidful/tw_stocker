@@ -1,0 +1,47 @@
+name: Compact Repository History
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Branch to compact (default: main)"
+        required: true
+        default: "main"
+      confirm:
+        description: "Type COMPACT to confirm force-push history rewrite"
+        required: true
+        default: ""
+
+jobs:
+  compact-history:
+    if: github.event.inputs.confirm == 'COMPACT'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Configure git identity
+        run: |
+          git config user.email "voidful.stack@gmail.com"
+          git config user.name "Voidful"
+
+      - name: Backup current tip
+        run: |
+          BACKUP_TAG="backup-before-compact-$(date -u +%Y%m%d-%H%M%S)"
+          git tag "${BACKUP_TAG}" HEAD
+          git push origin "${BACKUP_TAG}"
+
+      - name: Rewrite to single snapshot commit
+        run: |
+          TARGET_BRANCH="${{ github.event.inputs.target_branch }}"
+          git checkout --orphan compact-temp
+          git add -A
+          git commit -m "chore: compact history snapshot"
+          git branch -M "${TARGET_BRANCH}"
+          git push --force-with-lease origin "${TARGET_BRANCH}"
