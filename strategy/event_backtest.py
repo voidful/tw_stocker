@@ -192,6 +192,107 @@ class EventDrivenBacktester:
         atr = true_range.rolling(period).mean()
         return atr
 
+    def _compute_regime_scale(self, i, dates, close_df, market_close, market_ma60, market_ma20):
+        """計算第 i 根 bar 進場時的 (regime_ok, regime_scale)，全部使用 t-1 資料避免 lookahead。
+
+        抽出為共用方法，讓回測迴圈與 paper trading 的 next-session 查詢
+        (next_session_gap_limit) 使用完全相同的邏輯，避免 drift。
+        """
+        regime_ok = True
+        regime_scale = 1.0  # 曝險縮放（graduated mode）
+        if market_ma60 is not None:
+            try:
+                prev_date = dates[i - 1]
+                mkt_date = market_close.index.get_indexer([prev_date], method='ffill')[0]
+                if mkt_date >= 0:
+                    mkt_val = market_close.iloc[mkt_date]
+                    mkt_ma60 = market_ma60.iloc[mkt_date]
+                    mkt_ma20 = market_ma20.iloc[mkt_date] if market_ma20 is not None else np.nan
+                    if not pd.isna(mkt_val) and not pd.isna(mkt_ma60):
+                        if self.regime_graduated:
+                            # 四段式曝險：100% / 70% / 40% / 0%
+                            above_60 = mkt_val > mkt_ma60
+                            above_20 = mkt_val > mkt_ma20 if not pd.isna(mkt_ma20) else above_60
+                            if above_60 and above_20:
+                                regime_scale = 1.0   # 強多頭：全力進場
+                            elif above_60 and not above_20:
+                                regime_scale = 0.7   # 轉弱警告：縮減 30%
+                            elif not above_60 and above_20:
+                                regime_scale = 0.4   # 初步轉強：保守進場
+                            else:
+                                if self.regime_floor > 0:
+                                    regime_scale = self.regime_floor
+                                else:
+                                    regime_scale = 0.0
+                                    regime_ok = False
+                        else:
+                            # 傳統 binary：大盤 > 60MA 才進場
+                            regime_ok = mkt_val > mkt_ma60
+            except Exception:
+                pass
+
+        # === Breadth-aware Regime：用 universe 內部狀態修正 regime ===
+        if self.breadth_regime and regime_ok and i >= 21 and self._ma20_all is not None:
+            try:
+                above_20ma = (close_df.iloc[i - 1] > self._ma20_all.iloc[i - 1])
+                if self._universe_mask is not None and i - 1 < len(self._universe_mask):
+                    day_univ = self._universe_mask.iloc[i - 1]
+                    above_20ma = above_20ma & day_univ
+                    total_in_univ = max(day_univ.sum(), 1)
+                else:
+                    total_in_univ = len(close_df.columns)
+                breadth_pct = above_20ma.sum() / total_in_univ
+
+                if breadth_pct < 0.30:
+                    regime_scale = min(regime_scale, 0.3)
+                elif breadth_pct < 0.45:
+                    regime_scale = min(regime_scale, 0.5)
+            except Exception:
+                pass
+
+        # === Macro Regime：VIX 宏觀壓力調節 ===
+        if self.macro_regime and self._vix_series is not None and regime_ok:
+            try:
+                prev_date = dates[i - 1]
+                vix_idx = self._vix_series.index.get_indexer([prev_date], method='ffill')[0]
+                if vix_idx >= 0:
+                    vix_val = float(self._vix_series.iloc[vix_idx])
+                    if vix_val > 30:
+                        regime_scale *= 0.3   # 極端恐慌
+                    elif vix_val > 25:
+                        regime_scale *= 0.5   # 高度緊張
+                    elif vix_val > 22:
+                        regime_scale *= 0.7   # 警戒
+            except Exception:
+                pass
+
+        return regime_ok, regime_scale
+
+    def _effective_gap_limit(self, regime_scale):
+        """回測進場時實際採用的 gap filter 倍數（對齊迴圈內 dynamic_gap_filter 邏輯）。"""
+        eff_gap_limit = self.gap_filter_atr
+        if self.dynamic_gap_filter:
+            if regime_scale >= 1.0:
+                eff_gap_limit = 2.0
+            elif regime_scale >= 0.7:
+                eff_gap_limit = 1.8
+        return eff_gap_limit
+
+    def next_session_gap_limit(self):
+        """供 paper trading 使用：回傳「下一個交易日進場」會採用的 gap filter 倍數。
+
+        下一場進場（未來 bar i=N）的 regime 由 i-1=最後一根 bar（latest_date）的
+        資料決定——而那正是收盤後 ai_report 已知的資訊，因此可精確算出。
+        run() 尚未執行時退回靜態 gap_filter_atr。
+        """
+        if getattr(self, '_dates', None) is None or getattr(self, '_close_df', None) is None:
+            return self.gap_filter_atr
+        n = len(self._dates)  # 未來 bar 的索引；方法只讀取 i-1
+        _, regime_scale = self._compute_regime_scale(
+            n, self._dates, self._close_df,
+            self._market_close, self._market_ma60, self._market_ma20)
+        return self._effective_gap_limit(regime_scale)
+
     def run(self, total_score, close_df, open_df, high_df, low_df, ma_60,
             top_k=3, threshold=2.0, atr_df=None,
             market_close=None, vol_df=None, universe_mask=None):
@@ -307,6 +408,11 @@ class EventDrivenBacktester:
         else:
             market_ma60 = None
             market_ma20 = None
+        # 保存供 next-session regime 查詢（paper trading 對齊 gap filter）
+        self._market_close = market_close
+        self._market_ma60 = market_ma60
+        self._market_ma20 = market_ma20
+        self._close_df = close_df
 
         # 成交量 20 日均量
         if self.volume_confirm and vol_df is not None:
@@ -318,6 +424,7 @@ class EventDrivenBacktester:
         capital = self.initial_capital
         equity_curve = []
         dates = close_df.index
+        self._dates = dates
         active_trades = {}  # ticker -> trade_info
         max_positions = int(1.0 / self.position_size)  # 最多同時持有
         ticker_history = {}  # ticker -> list of recent Return_Pct (for blacklist)
@@ -571,73 +678,8 @@ class EventDrivenBacktester:
             if len(active_trades) < max_positions and entry_allowed:
                 # ── Regime Filter + Graduated Exposure ──
                 # ━━ FIX: 使用 t-1 大盤數據（避免同日 lookahead） ━━
-                regime_ok = True
-                regime_scale = 1.0  # 曝險縮放（graduated mode）
-                if market_ma60 is not None:
-                    try:
-                        prev_date = dates[i - 1]
-                        mkt_date = market_close.index.get_indexer([prev_date], method='ffill')[0]
-                        if mkt_date >= 0:
-                            mkt_val = market_close.iloc[mkt_date]
-                            mkt_ma60 = market_ma60.iloc[mkt_date]
-                            mkt_ma20 = market_ma20.iloc[mkt_date] if market_ma20 is not None else np.nan
-                            if not pd.isna(mkt_val) and not pd.isna(mkt_ma60):
-                                if self.regime_graduated:
-                                    # 四段式曝險：100% / 70% / 40% / 0%
-                                    above_60 = mkt_val > mkt_ma60
-                                    above_20 = mkt_val > mkt_ma20 if not pd.isna(mkt_ma20) else above_60
-                                    if above_60 and above_20:
-                                        regime_scale = 1.0   # 強多頭：全力進場
-                                    elif above_60 and not above_20:
-                                        regime_scale = 0.7   # 轉弱警告：縮減 30%
-                                    elif not above_60 and above_20:
-                                        regime_scale = 0.4   # 初步轉強：保守進場
-                                    else:
-                                        if self.regime_floor > 0:
-                                            regime_scale = self.regime_floor
-                                        else:
-                                            regime_scale = 0.0
-                                            regime_ok = False
-                                else:
-                                    # 傳統 binary：大盤 > 60MA 才進場
-                                    regime_ok = mkt_val > mkt_ma60
-                    except Exception:
-                        pass
-
-                # === Breadth-aware Regime：用 universe 內部狀態修正 regime ===
-                if self.breadth_regime and regime_ok and i >= 21 and self._ma20_all is not None:
-                    try:
-                        above_20ma = (close_df.iloc[i - 1] > self._ma20_all.iloc[i - 1])
-                        if self._universe_mask is not None and i - 1 < len(self._universe_mask):
-                            day_univ = self._universe_mask.iloc[i - 1]
-                            above_20ma = above_20ma & day_univ
-                            total_in_univ = max(day_univ.sum(), 1)
-                        else:
-                            total_in_univ = len(close_df.columns)
-                        breadth_pct = above_20ma.sum() / total_in_univ
-
-                        if breadth_pct < 0.30:
-                            regime_scale = min(regime_scale, 0.3)
-                        elif breadth_pct < 0.45:
-                            regime_scale = min(regime_scale, 0.5)
-                    except Exception:
-                        pass
-
-                # === Macro Regime：VIX 宏觀壓力調節 ===
-                if self.macro_regime and self._vix_series is not None and regime_ok:
-                    try:
-                        prev_date = dates[i - 1]
-                        vix_idx = self._vix_series.index.get_indexer([prev_date], method='ffill')[0]
-                        if vix_idx >= 0:
-                            vix_val = float(self._vix_series.iloc[vix_idx])
-                            if vix_val > 30:
-                                regime_scale *= 0.3   # 極端恋慌
-                            elif vix_val > 25:
-                                regime_scale *= 0.5   # 高度緊張
-                            elif vix_val > 22:
-                                regime_scale *= 0.7   # 警戒
-                    except Exception:
-                        pass
+                regime_ok, regime_scale = self._compute_regime_scale(
+                    i, dates, close_df, market_close, market_ma60, market_ma20)
 
                 candidates = []
                 if regime_ok:
@@ -673,12 +715,7 @@ class EventDrivenBacktester:
                             if not pd.isna(atr_val) and atr_val > 0:
                                 gap = abs(entry_price - prev_close)
                                 # Dynamic gap filter: 強勢 regime 放寬到 2.0 ATR
-                                eff_gap_limit = self.gap_filter_atr
-                                if self.dynamic_gap_filter:
-                                    if regime_scale >= 1.0:
-                                        eff_gap_limit = 2.0
-                                    elif regime_scale >= 0.7:
-                                        eff_gap_limit = 1.8
+                                eff_gap_limit = self._effective_gap_limit(regime_scale)
                                 if gap > eff_gap_limit * atr_val:
                                     continue
 

@@ -490,7 +490,8 @@ def generate_report(trades_df, equity_df, total_score, close_df, config,
                 'tp_price': round(float(tp_price), 4),
                 'sl_price': round(float(sl_price), 4),
                 'atr': round(order_atr, 4) if order_atr else None,
-                'gap_limit_atr': float(config.get('gap_filter', 1.5)),
+                'gap_limit_atr': float(config.get('gap_filter_effective',
+                                                  config.get('gap_filter', 1.5))),
                 'max_hold_days': int(max_hold_days),
                 'time_exit': time_exit,
                 'model_version': 'v8.5',
@@ -1999,6 +2000,9 @@ def main():
         'sell_cost': args.sell_cost,
         'gap_filter': args.gap_filter,
         'dynamic_gap_filter': args.dynamic_gap_filter,
+        # 下一交易日進場實際採用的 gap filter 倍數（含 dynamic regime 放寬），
+        # 由回測引擎以 latest_date 大盤資料算出，供 paper trading 精確對齊。
+        'gap_filter_effective': backtester.next_session_gap_limit(),
     }
     generate_report(report_trades_df, report_equity_df, total_score, close_df, config,
                     metrics, benchmark_equity, ew_equity,
