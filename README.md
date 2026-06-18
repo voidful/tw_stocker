@@ -1,6 +1,6 @@
-# TW Stocker v9.0 — AI 量化交易系統（雙策略架構）
+# TW Stocker v9.1 — AI 量化交易系統（多策略架構）
 
-中期動量 + 板塊輪動的雙策略系統。v8.5 個股動量穩健底倉 + Sector Rotation v2 板塊資金流追蹤。
+中期動量 + 板塊輪動 + 早盤餐費策略的多策略系統。v8.5 個股動量穩健底倉 + Sector Rotation v2 板塊資金流追蹤 + Meal Money v2 早盤小目標策略。
 美股前提（SPY/VIX/SOX）→ 板塊資金流選擇 → 板塊內選股。
 
 > 最新重算：2026-05-26。以下數字已套用日期對齊、eval window 裁切、raw OHLCV tradability mask、`.TW/.TWO` fallback、Arithmetic Sharpe 修正。舊版 README 的高 Sharpe / crisis headline 不應再沿用。
@@ -10,19 +10,171 @@
 
 ---
 
-## 雙策略架構總覽
+## 多策略架構總覽
 
-| | v8.5 Momentum | Sector Rotation v2 (NEW) |
-|---|:---:|:---:|
-| **邏輯** | 個股 cross-sectional ranking | 先選板塊 → 板塊內排名 |
-| **Regime** | 台股 0050 vs MA60 | 🌍 **美股 SPY + VIX + SOX** |
-| **選股因子** | Mom(20d)×3 + Trend(60MA)×1 | 板塊 flow(10/15/20d) + 板塊內動量 |
-| **角色** | 穩健底倉（低 MDD） | 積極追蹤（高報酬） |
-| **1200d 年化** | **+76.8%** | +53.8% |
-| **1200d Sharpe** | **2.37** | 1.61 |
-| **1200d MDD** | **-16.4%** | -38.0% |
-| **7y 年化參考** | +39.0% | +36.6% |
-| **7y Sharpe 參考** | 1.56 | 1.32 |
+| | v8.5 Momentum | Sector Rotation v2 | Meal Money v2 |
+|---|:---:|:---:|:---:|
+| **邏輯** | 個股 cross-sectional ranking | 先選板塊 → 板塊內排名 | 少交易早盤做多 + 每日雙向量大策略 |
+| **Regime** | 台股 0050 vs MA60 | 美股 SPY + VIX + SOX | 台股寬度 + 費半/SOX + 夜盤追蹤；預設不硬 gate |
+| **選股因子** | Mom(20d)×3 + Trend(60MA)×1 | 板塊 flow(10/15/20d) + 板塊內動量 | v8.5 score 或 09:00~09:10 高量價壓力；不限制產業別 |
+| **角色** | 穩健底倉（低 MDD） | 積極追蹤（高報酬） | 09:40 前結束的小額日內策略 |
+| **成本模型** | 買 0.1425% + 賣 0.4425% + 滑價 | 同左 | 一般版賣出稅 0.3%；每日當沖版賣出稅 0.15%；最低手續費 |
+| **狀態** | Production baseline | Research sleeve | Experimental / paper first |
+
+---
+
+## Meal Money v2 — 一天賺餐費早盤策略
+
+這是一個獨立於 production 底倉的早盤策略，使用本 repo 的 5 分 K `data/*.csv` 回測。
+分類追蹤參考玩股網的上市/上櫃類股結構，repo 內用 `strategy.sector_flow.classify_sector()` 做長期 sector attribution。
+
+核心規則：
+
+```
+隔夜篩選:
+  1. 沿用 v8.5 分數：rank_momentum(20d) × 3 + rank_trend(60MA) × 1
+  2. 前日 close > 60MA
+  3. 股價 103 ~ 180
+  4. 20 日均量 >= 2,000,000 股；不使用 09:15 bar 成交量作為進場前濾網
+  5. 動態流動性 Universe Top-60
+  6. 預設不限制產業別；sector 只做長期歸因追蹤
+  7. 預設追蹤台股市場寬度、費半/SOX、夜盤；只有明確開 gate 才用來擋單
+
+早盤執行:
+  1. 前 15 分鐘不下單；預設 09:15 才允許進場
+  2. 09:00~09:10 必須已放量上漲：成交量 >= 2,000,000、漲幅 >= 2.0%、振幅 >= 1.5%
+  3. 用 one-tick edge 模型：預設嘗試比參考價低 1 tick 的買價
+  4. 開盤 gap 預設需在 +0.5% ~ +4.0%
+  5. 此舊版單筆本金預設 100,000，且成交股款不得低於 15,000；用零股 sizing，不用整張
+  6. 費用後淨利至少 +500 才算達標；設定目標區間 +500 ~ +800
+  7. 目標價用台股 tick size 往上對齊，預設要求最多 3 ticks 達標
+  8. 若未達標，09:35 強制出場，確保 09:40 前結束
+  9. 同一根 5 分 K 同時碰到停損與停利時，回測採停損優先
+
+長期追蹤:
+  1. 產業別績效：`artifacts/meal_money_sector_YYYYMMDD.csv`
+  2. 交易時間波動：`artifacts/meal_money_time_focus_YYYYMMDD.csv`
+  3. 台股市場寬度 / 5 日市場報酬：`Market_Breadth_20`、`Market_Return_5D`
+  4. 費半/SOX：使用 `--track-us-market` 追蹤，`--use-us-market` 才硬 gate
+  5. 夜盤：提供 `--night-market-csv` 時寫入 `Night_Return_Pct`，加 `--use-night-filter` 才硬 gate
+  6. 預設追蹤時間：09:15、10:00、11:00、11:40、12:00、12:50、13:00、13:20
+
+成本:
+  買進 = 買進成交金額 × 0.1425%，每邊最低手續費 20
+  賣出 = 賣出成交金額 × 0.1425% + 賣出成交金額 × 0.3%，每邊最低手續費 20
+  例如 15,000 成交金額：買手續費 21.375、賣手續費 21.375、證交稅 45，來回成本 87.75
+  額外滑價預設 0
+```
+
+Historical 100k reference（2024-05-01 → 2026-04-01 extended pool）：
+
+| 指標 | 值 |
+|------|:---:|
+| Active days | 12 |
+| Success days | 8 |
+| Daily success rate | 66.7% |
+| Total net PnL | +2,249 |
+| Avg trade net PnL | +187 |
+| Avg trades / success day | 1.00 |
+| 09:40 cutoff violations | 0 |
+
+Train/test split：2024-05-01 → 2025-04-30 為 +356；2025-05-01 → 2026-04-01 為 +1,894，測試段 9 筆、6 筆達標、成功率 66.7%。100k focused search 400 組後，此組是在 train/test/full 皆為正的候選中，交易筆數最多的版本；獲利最高版本為 8 筆、全段 +3,640，但交易更少。
+
+前提：此結果使用完整手續費 0.1425% + 證交稅 0.3%，並納入每邊最低手續費 20。100,000 本金要淨賺 500，通常需要約 1% 左右的股價移動；它是舊版大本金參考，不是目前「本金最多 20,000」的主策略。小本金需求以 Daily Meal Money 的 `small-cap-daily` 為準。
+
+Meal Money v2 的目的不是取代 v8.5，而是低相關、短持有時間的 production candidate。它依賴 5 分 K 品質；正式加到每日主報表前，應持續觀察實盤成交率、滑價、產業歸因、夜盤/費半前提與 09:40 前出場紀律。
+
+### Daily Meal Money — 每日雙向量大優先版本
+
+為了符合「本金最多 20,000、盡量每天交易賺午餐錢」的要求，`daily_meal_money_report.py` 現在預設使用 `--preset small-cap-daily`。它不使用前日 v8.5 排名，而是在指定交易時段內從全市場高成交量股票中挑出一檔最強的量價壓力候選；做多與做空皆可，方向由當下量價壓力決定。舊的 100,000 本金版本仍可用 `--preset daily` 明確指定重跑，但不是目前 production candidate。
+
+核心規則：
+
+```
+20k 每日候選:
+  1. 全市場 data/*.csv，不限制產業別
+  2. 股價 103 ~ 180
+  3. 20 日均量 >= 1,000,000 股
+  4. 允許交易時段：09:00~09:40、10:00~10:20、11:00~11:20、11:40~12:20、12:50~13:30
+  5. 各時段先看前段量價；成交量 >= 500,000、振幅 >= 1.2%
+  6. 做多 gap: -1.5% ~ +2.5%；做空 gap: -2.5% ~ +1.5%
+  7. abs_pressure 分數：成交額 + 相對量 + 絕對波動 + 方向壓力；做空分數 +10 bias
+  8. 非 09:00~09:40 候選分數扣 20，只有明顯強訊號才切到後面時段
+  9. 做多/做空同時排序；當天只取第一個可在 tick / 本金限制內交易的候選
+ 10. 單筆本金 15,000 ~ 20,000；目標為費稅後淨利 +420
+ 11. 當沖證交稅用 0.15%，買賣手續費各 0.1425%，每邊最低 20
+ 12. 停損 2.0%，目標最多 6 ticks；同根 K 同時碰停損/停利時停損優先
+ 13. 各時段都在該時段結束前強制出場
+```
+
+Backtest（2024-05-01 → 2026-04-01，全市場 1213 檔 5 分 K）：
+
+| 指標 | 值 |
+|------|:---:|
+| Calendar days | 465 |
+| Active days / trades | 429 / 465 |
+| Active ratio | 92.3% |
+| Target-hit trades | 61 |
+| Target rate | 14.2% |
+| Win rate | 57.1% |
+| Long ratio | 17.9% |
+| Total net PnL | +5,974 |
+| Avg trade net PnL | +14 |
+| Cutoff violations | 0 |
+| Train / test PnL | +5,171 / +802 |
+
+年度拆解：2024 為 +5,566、2025 為 -2,090、2026 為 +2,498。這代表五段時窗 20k 版本已比硬塞每日交易穩定，但仍不是無腦 production；2025 年段為負，正式實盤前必須先 paper trading 驗證：可現股當沖標的、先賣後買券源/券差、實際滑價、各時段掛單成交率、以及 0.15% 當沖稅是否實際適用。
+
+Small-cap daily preset（本金 20,000 內、盡量每天交易）：
+
+```
+python daily_meal_money_report.py --preset small-cap-daily --start-date 2024-05-01 --end-date 2026-04-01
+```
+
+| 指標 | 值 |
+|------|:---:|
+| Capital cap | 20,000 |
+| Target net PnL | +420 |
+| Accepted windows | 09:00~09:40, 10:00~10:20, 11:00~11:20, 11:40~12:20, 12:50~13:30 |
+| Active days / trades | 429 / 465 |
+| Active ratio | 92.3% |
+| Target-hit trades | 61 |
+| Target rate | 14.2% |
+| Win rate | 57.1% |
+| Long ratio | 17.9% |
+| Total net PnL | +5,974 |
+| Avg trade net PnL | +14 |
+| Train / test PnL | +5,171 / +802 |
+
+此 preset 專門服務「小本金但盡量每天交易」：20 日均量 >= 1,000,000、各時段前段量 >= 500,000、振幅 >= 1.2%、相對前段量 <= 2.0，做多/做空雙向取最高 abs_pressure 分數，目標最多 6 ticks，停損 2.0%。勝率改善版使用 reselect-after-feasibility：當天分數第一名若因所需 ticks / 本金等條件不合格，不直接放棄當天，而是依分數改選下一個可交易候選。搜尋中 `max_required_ticks=7` 可提高交易數到 459，但勝率降到 49.2%；單用 09:00~09:40、6 ticks 則是 419 筆、勝率 56.6%、+5,338。加入五段時窗與非早盤扣分後，保留 429 筆交易、勝率 57.1%、+5,974，因此目前採此版本。
+
+Small-cap one-shot preset（本金 20,000 內、交易次數少、單筆淨利至少 +500）：
+
+```
+python daily_meal_money_report.py --preset small-cap-one-shot --start-date 2024-05-01 --end-date 2026-04-01
+```
+
+| 指標 | 值 |
+|------|:---:|
+| Capital cap | 20,000 |
+| Side | Short only |
+| Active days / trades | 23 |
+| Target-hit trades | 13 |
+| Target rate | 56.5% |
+| Win rate | 73.9% |
+| Total net PnL | +5,519 |
+| Avg trade net PnL | +240 |
+| Train / test PnL | +2,455 / +3,065 |
+
+此 preset 專門服務「小本金、少交易、一次達標」：09:00~09:10 需出現極端下跌壓力，振幅 >= 6%，才在 09:15 做空。搜尋中，若採用保守一般股票賣出稅 0.3%，沒有找到同時滿足 train/test 皆正且 target-hit rate >= 55% 的候選；能成立的版本使用現股當沖稅 0.15%。
+
+快速重跑：
+
+```bash
+python daily_meal_money_report.py --preset small-cap-daily --start-date 2024-05-01 --end-date 2026-04-01
+python daily_meal_money_report.py --mode signals
+python daily_meal_money_report.py --preset small-cap-one-shot --start-date 2024-05-01 --end-date 2026-04-01
+```
 
 ---
 
@@ -185,6 +337,20 @@ python -m research.experiment_registry --latest 20
 # ── Paper Trading ──
 python paper_trade.py signals --enrich
 python paper_trade.py hardstop
+
+# ── Meal Money v2（早盤餐費策略）──
+python meal_money_report.py --mode backtest --start-date 2024-05-01 --end-date 2026-04-01
+python meal_money_report.py --mode signals
+python meal_money_report.py --mode backtest --track-us-market
+python meal_money_report.py --mode backtest --use-us-market  # SOX hard gate
+python meal_money_report.py --mode backtest --night-market-csv artifacts/night_market.csv --use-night-filter
+python meal_money_sweep.py --pool extended --max-configs 280
+
+# ── Daily Meal Money（每日雙向量大優先）──
+python daily_meal_money_report.py --start-date 2024-05-01 --end-date 2026-04-01
+python daily_meal_money_report.py --mode signals
+python daily_meal_money_report.py --preset small-cap-daily --start-date 2024-05-01 --end-date 2026-04-01
+python daily_meal_money_report.py --preset small-cap-one-shot --start-date 2024-05-01 --end-date 2026-04-01
 ```
 
 ## 研究平台化工具
@@ -206,6 +372,9 @@ python paper_trade.py hardstop
 tw_stocker/
 ├── ai_report.py                  # v8.5 主程式 + CLI + HTML 報表
 ├── sector_rotation_report.py     # 🆕 板塊輪動 v2 回測 + 報告
+├── meal_money_report.py          # 🆕 一天賺餐費早盤做多策略 CLI
+├── meal_money_sweep.py           # 🆕 Meal Money 參數搜尋與 production gate
+├── daily_meal_money_report.py    # 🆕 每日雙向量大優先餐費策略 CLI
 ├── deep_crisis_test.py           # 🆕 11 段歷史危機壓測 + 00981A
 ├── crisis_test.py                # 基礎危機壓力測試
 ├── walk_forward.py               # Anchored OOS 穩定性驗證 (v2)
@@ -221,6 +390,8 @@ tw_stocker/
 ├── strategy/
 │   ├── ai_strategy.py            # 因子工程 (Mom×3 + Trend×1)
 │   ├── event_backtest.py         # v8.5 事件驅動回測引擎
+│   ├── meal_money.py             # 🆕 早盤做多餐費策略回測/信號邏輯
+│   ├── daily_meal_money.py       # 🆕 每日雙向量大優先餐費策略
 │   ├── us_market.py              # 🆕 美股信號 (SPY/VIX/SOX)
 │   ├── sector_rotation_backtest.py # 🆕 板塊輪動回測引擎
 │   ├── sector_flow.py            # 板塊資金流分析
