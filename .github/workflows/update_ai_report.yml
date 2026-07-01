@@ -110,6 +110,7 @@ jobs:
   # 每季第一週自動跑 sweep + Monte Carlo + Walk-Forward
   quarterly-health-check:
     runs-on: ubuntu-latest
+    needs: generate-report
     if: github.event_name == 'schedule'
 
     steps:
