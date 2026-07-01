@@ -2,8 +2,9 @@ name: AI Quant Trading Report v8.5
 
 on:
   schedule:
-    # 每週一到五 UTC 09:17 執行（台灣時間 17:17 收盤後，避開 GitHub Actions 整點高峰）
-    - cron: '17 9 * * 1-5'
+    # 每週一到六 UTC 09:17 執行（台灣時間 17:17 收盤後）。
+    # 週六排程涵蓋台股補班交易日，實際是否更新由 XTAI 行事曆判定。
+    - cron: '17 9 * * 1-6'
     # 每月 1 日 UTC 10:00 跑月報
     - cron: '0 10 1 * *'
   workflow_dispatch:
@@ -38,6 +39,9 @@ concurrency:
   group: ai-report-main
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   generate-report:
     runs-on: ubuntu-latest
@@ -58,8 +62,34 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Check Taiwan trading day
+        id: twcheck
+        run: |
+          python - <<'PY'
+          import datetime
+          import os
+
+          is_trading = True
+          if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+              try:
+                  import exchange_calendars as xcals
+                  import pandas as pd
+
+                  taiwan_date = (datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=8)).date()
+                  is_trading = bool(xcals.get_calendar("XTAI").is_session(pd.Timestamp(taiwan_date)))
+                  print(f"Taiwan date {taiwan_date}; XTAI trading day? {is_trading}")
+              except Exception as exc:
+                  print(f"Trading-day check failed; defaulting to run: {exc}")
+                  is_trading = True
+          else:
+              print("workflow_dispatch: run regardless of trading calendar")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"is_trading={'true' if is_trading else 'false'}\n")
+          PY
+
       - name: Run AI Quant Pipeline v8.5
-        if: github.event.schedule != '0 10 1 * *'
+        if: github.event.schedule != '0 10 1 * *' && steps.twcheck.outputs.is_trading == 'true'
         run: |
           python ai_report.py \
             --regime-filter \
@@ -74,7 +104,7 @@ jobs:
             --days ${{ github.event.inputs.days || '1200' }}
 
       - name: Paper Trading Tracker
-        if: github.event.schedule != '0 10 1 * *'
+        if: github.event.schedule != '0 10 1 * *' && steps.twcheck.outputs.is_trading == 'true'
         run: python paper_tracker.py
 
       - name: Monthly Paper Trading Report
@@ -101,11 +131,18 @@ jobs:
             git commit -m "📊 AI Report v8.5 + Paper Trading ($(date -u '+%Y-%m-%d'))"
           fi
 
-          # Rebase onto latest remote without downloading the full repository history.
-          git fetch --no-tags --depth=50 origin main:refs/remotes/origin/main
-          git rebase --autostash origin/main
-
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            git fetch --no-tags --depth=50 origin main:refs/remotes/origin/main
+            git rebase -X theirs --autostash origin/main
+            if git push origin HEAD:main; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "git push failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
   # 每季第一週自動跑 sweep + Monte Carlo + Walk-Forward
   quarterly-health-check:
@@ -171,8 +208,15 @@ jobs:
             git commit -m "🔄 Quarterly health check ($(date -u '+%Y-%m-%d'))"
           fi
 
-          # Rebase onto latest remote without downloading the full repository history.
-          git fetch --no-tags --depth=50 origin main:refs/remotes/origin/main
-          git rebase --autostash origin/main
-
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            git fetch --no-tags --depth=50 origin main:refs/remotes/origin/main
+            git rebase -X theirs --autostash origin/main
+            if git push origin HEAD:main; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "git push failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
