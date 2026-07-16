@@ -1,0 +1,34 @@
+name: Validate data archive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'scripts/build_catalog.py'
+      - '.github/workflows/validate_data.yml'
+  pull_request:
+    paths:
+      - 'data/**'
+      - 'scripts/build_catalog.py'
+      - '.github/workflows/validate_data.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          fetch-tags: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Validate CSV files and manifest
+        run: python scripts/build_catalog.py --check

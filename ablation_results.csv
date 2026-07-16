@@ -1,9 +1,0 @@
-Configuration,Factors,Hold_Days,Total_Return_%,Ann_Return_%,Ann_Vol_%,Sharpe,Sortino,Max_DD_%,Calmar,Trades,Win_Rate_%,Profit_Factor,Avg_Return_%
-All 4 factors,"momentum, trend, volume, stability",20,43.26,21.56,18.27,1.18,1.589,-19.5,1.104,504,46.4,1.31,0.75
-No volume,"momentum, trend, stability",20,34.05,17.25,18.87,0.914,1.2,-21.1,0.816,499,45.7,1.25,0.63
-No stability,"momentum, trend, volume",20,34.23,17.34,18.95,0.915,1.209,-21.2,0.818,515,45.0,1.24,0.61
-Mom + Trend only,"momentum, trend",20,28.66,14.67,19.81,0.74,0.943,-23.7,0.619,513,44.6,1.2,0.53
-Momentum only,momentum,20,31.47,16.02,19.24,0.833,1.074,-22.8,0.704,511,45.0,1.22,0.57
-Trend only,trend,20,33.93,17.19,19.94,0.862,1.098,-22.6,0.762,511,45.2,1.23,0.61
-"All 4, Hold=10D","momentum, trend, volume, stability",10,26.65,13.69,17.92,0.764,1.063,-23.6,0.58,617,45.9,1.19,0.43
-"All 4, Hold=30D","momentum, trend, volume, stability",30,44.32,22.05,18.42,1.197,1.588,-19.9,1.106,480,46.5,1.32,0.81

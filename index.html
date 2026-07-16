@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="台灣市場 OHLCV 歷史資料集與資料瀏覽器">
+  <title>TW Stock Data</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #14211c;
+      --muted: #637068;
+      --paper: #f4f7f2;
+      --panel: rgba(255, 255, 255, 0.88);
+      --line: #dce5dd;
+      --accent: #087f5b;
+      --accent-soft: #d9f3e9;
+      --blue: #1d4ed8;
+      --shadow: 0 18px 60px rgba(27, 57, 43, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 4%, rgba(8, 127, 91, 0.11), transparent 27rem),
+        radial-gradient(circle at 95% 12%, rgba(29, 78, 216, 0.08), transparent 24rem),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 64px 0 48px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 40px;
+      align-items: end;
+      margin-bottom: 32px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 28px;
+      height: 2px;
+      background: currentColor;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.6rem, 7vw, 5.7rem);
+      line-height: 0.92;
+      letter-spacing: -0.065em;
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.75;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat, .panel {
+      border: 1px solid rgba(210, 222, 213, 0.9);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .stat {
+      min-height: 112px;
+      padding: 20px;
+      border-radius: 20px;
+    }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-size: clamp(1.25rem, 3vw, 1.85rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .panel {
+      overflow: hidden;
+      margin-top: 20px;
+      border-radius: 24px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    input, select {
+      min-height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      outline: none;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    input {
+      min-width: 0;
+      flex: 1;
+      padding: 0 15px;
+    }
+
+    select { padding: 0 36px 0 13px; }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    .result-count {
+      padding: 0 20px 12px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 13px 20px; border-top: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    th { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; }
+    td { font-size: 0.9rem; }
+
+    .ticker-button {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 800;
+    }
+
+    .raw-link { color: var(--blue); text-decoration: none; font-weight: 650; }
+    .ticker-button:hover, .raw-link:hover { text-decoration: underline; }
+
+    .preview { padding: 24px; }
+    .preview-head { display: flex; justify-content: space-between; gap: 20px; align-items: start; margin-bottom: 18px; }
+    .preview h2 { margin: 0 0 6px; font-size: 1.7rem; letter-spacing: -0.04em; }
+    .preview-meta { color: var(--muted); font-size: 0.9rem; }
+    .latest { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
+    .chip { padding: 7px 10px; border-radius: 999px; background: var(--accent-soft); color: #075f46; font-size: 0.78rem; font-weight: 700; }
+
+    .chart-wrap {
+      min-height: 360px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    canvas { display: block; width: 100%; height: 330px; }
+    .message { display: grid; min-height: 330px; place-items: center; color: var(--muted); text-align: center; line-height: 1.6; }
+    footer { padding: 30px 4px 0; color: var(--muted); font-size: 0.83rem; line-height: 1.7; }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 1180px); padding-top: 34px; }
+      header { grid-template-columns: 1fr; gap: 20px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .toolbar, .preview-head { flex-direction: column; }
+      .latest { justify-content: start; }
+      th, td { padding-inline: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Open data archive</div>
+        <h1>TW Stock<br>Data</h1>
+      </div>
+      <p>按代號整理的台灣市場 OHLCV 歷史資料。搜尋檔案、核對涵蓋範圍，並直接預覽每份 CSV 的近期收盤價與成交量。</p>
+    </header>
+
+    <section class="stats" aria-label="資料集摘要">
+      <div class="stat"><span class="stat-label">CSV files</span><span class="stat-value" id="file-count">—</span></div>
+      <div class="stat"><span class="stat-label">Records</span><span class="stat-value" id="record-count">—</span></div>
+      <div class="stat"><span class="stat-label">Archive size</span><span class="stat-value" id="archive-size">—</span></div>
+      <div class="stat"><span class="stat-label">Data through</span><span class="stat-value" id="data-through">—</span></div>
+    </section>
+
+    <section class="panel" aria-labelledby="catalog-title">
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="搜尋代號，例如 0050" autocomplete="off" aria-label="搜尋代號">
+        <select id="frequency" aria-label="資料頻率">
+          <option value="all">全部頻率</option>
+          <option value="intraday">盤中資料</option>
+          <option value="daily">日資料</option>
+        </select>
+      </div>
+      <div class="result-count" id="result-count">正在載入 manifest…</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th id="catalog-title">代號</th><th>頻率</th><th>筆數</th><th>開始</th><th>結束</th><th>大小</th><th>檔案</th></tr></thead>
+          <tbody id="catalog"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel preview" aria-labelledby="preview-title">
+      <div class="preview-head">
+        <div>
+          <h2 id="preview-title">資料預覽</h2>
+          <div class="preview-meta" id="preview-meta">從上方選擇一個代號</div>
+        </div>
+        <div class="latest" id="latest"></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="message" id="chart-message">選擇代號後，這裡會顯示最近 240 筆收盤價與成交量。</div>
+        <canvas id="chart" hidden aria-label="近期收盤價與成交量圖"></canvas>
+      </div>
+    </section>
+
+    <footer>
+      頁面直接讀取 repo 內的 CSV，不呼叫外部服務。資料可能有延遲、缺漏或來源端修正；請自行核對授權、正確性與適用性。
+    </footer>
+  </main>
+
+  <script>
+    const state = { manifest: null, selected: null, points: [] };
+    const number = new Intl.NumberFormat('zh-TW');
+    const compact = new Intl.NumberFormat('zh-TW', { notation: 'compact', maximumFractionDigits: 1 });
+
+    function bytes(value) {
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let size = value;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
+      return `${size.toFixed(unit > 1 ? 1 : 0)} ${units[unit]}`;
+    }
+
+    function cell(row, text) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      row.appendChild(td);
+      return td;
+    }
+
+    function renderCatalog() {
+      const query = document.querySelector('#search').value.trim().toUpperCase();
+      const frequency = document.querySelector('#frequency').value;
+      const matches = state.manifest.files.filter(item =>
+        item.ticker.includes(query) && (frequency === 'all' || item.frequency === frequency)
+      );
+      const visible = matches.slice(0, 100);
+      const body = document.querySelector('#catalog');
+      body.replaceChildren();
+
+      visible.forEach(item => {
+        const row = document.createElement('tr');
+        const tickerCell = document.createElement('td');
+        const button = document.createElement('button');
+        button.className = 'ticker-button';
+        button.type = 'button';
+        button.textContent = item.ticker;
+        button.addEventListener('click', () => loadTicker(item));
+        tickerCell.appendChild(button);
+        row.appendChild(tickerCell);
+        cell(row, item.frequency === 'daily' ? '日' : '盤中');
+        cell(row, number.format(item.records));
+        cell(row, item.start ? item.start.slice(0, 10) : '—');
+        cell(row, item.end ? item.end.slice(0, 10) : '—');
+        cell(row, bytes(item.bytes));
+        const linkCell = document.createElement('td');
+        const link = document.createElement('a');
+        link.className = 'raw-link';
+        link.href = item.path;
+        link.textContent = 'CSV ↗';
+        link.setAttribute('download', '');
+        linkCell.appendChild(link);
+        row.appendChild(linkCell);
+        body.appendChild(row);
+      });
+
+      const suffix = matches.length > visible.length ? `，目前顯示前 ${visible.length} 筆` : '';
+      document.querySelector('#result-count').textContent = `${number.format(matches.length)} 個檔案${suffix}`;
+    }
+
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const headers = lines[0].split(',');
+      const start = Math.max(1, lines.length - 240);
+      return lines.slice(start).map(line => {
+        const values = line.split(',');
+        const row = Object.fromEntries(headers.map((name, index) => [name, values[index]]));
+        return {
+          time: row.Datetime || row.Date,
+          open: Number(row.Open), high: Number(row.High), low: Number(row.Low),
+          close: Number(row.Close), volume: Number(row.Volume)
+        };
+      }).filter(point => point.time && Number.isFinite(point.close));
+    }
+
+    async function loadTicker(item) {
+      state.selected = item;
+      location.hash = item.ticker;
+      document.querySelector('#preview-title').textContent = item.ticker;
+      document.querySelector('#preview-meta').textContent = `載入 ${item.path}…`;
+      document.querySelector('#latest').replaceChildren();
+      document.querySelector('#chart').hidden = true;
+      const message = document.querySelector('#chart-message');
+      message.hidden = false;
+      message.textContent = '正在讀取 CSV…';
+
+      try {
+        const response = await fetch(item.path);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.points = parseCSV(await response.text());
+        if (!state.points.length) throw new Error('沒有可繪製的資料列');
+        const latest = state.points.at(-1);
+        document.querySelector('#preview-meta').textContent =
+          `${item.frequency === 'daily' ? '日資料' : '盤中資料'} · ${number.format(item.records)} 筆 · 顯示最後 ${state.points.length} 筆`;
+        const labels = [
+          `時間 ${latest.time}`,
+          `開 ${latest.open.toLocaleString('zh-TW')}`,
+          `高 ${latest.high.toLocaleString('zh-TW')}`,
+          `低 ${latest.low.toLocaleString('zh-TW')}`,
+          `收 ${latest.close.toLocaleString('zh-TW')}`,
+          `量 ${compact.format(latest.volume)}`
+        ];
+        const latestBox = document.querySelector('#latest');
+        labels.forEach(label => {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = label;
+          latestBox.appendChild(chip);
+        });
+        message.hidden = true;
+        document.querySelector('#chart').hidden = false;
+        drawChart();
+      } catch (error) {
+        message.hidden = false;
+        message.textContent = `無法載入 ${item.path}：${error.message}`;
+      }
+    }
+
+    function drawChart() {
+      const canvas = document.querySelector('#chart');
+      if (canvas.hidden || !state.points.length) return;
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+
+      const width = rect.width;
+      const height = rect.height;
+      const pad = { top: 20, right: 16, bottom: 22, left: 58 };
+      const priceBottom = height * 0.72;
+      const volumeTop = height * 0.80;
+      const closes = state.points.map(point => point.close);
+      const volumes = state.points.map(point => point.volume);
+      let min = Math.min(...closes);
+      let max = Math.max(...closes);
+      if (max === min) { max += 1; min -= 1; }
+      const maxVolume = Math.max(...volumes, 1);
+      const x = index => pad.left + index * (width - pad.left - pad.right) / Math.max(1, state.points.length - 1);
+      const y = value => pad.top + (max - value) * (priceBottom - pad.top) / (max - min);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.font = '12px ui-sans-serif, system-ui';
+      ctx.strokeStyle = '#e5ebe6';
+      ctx.fillStyle = '#738078';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i += 1) {
+        const value = max - (max - min) * i / 4;
+        const lineY = y(value);
+        ctx.beginPath(); ctx.moveTo(pad.left, lineY); ctx.lineTo(width - pad.right, lineY); ctx.stroke();
+        ctx.fillText(value.toLocaleString('zh-TW', { maximumFractionDigits: 2 }), 4, lineY + 4);
+      }
+
+      const barWidth = Math.max(1, (width - pad.left - pad.right) / state.points.length * 0.72);
+      ctx.fillStyle = 'rgba(29, 78, 216, 0.22)';
+      state.points.forEach((point, index) => {
+        const barHeight = (height - volumeTop - pad.bottom) * point.volume / maxVolume;
+        ctx.fillRect(x(index) - barWidth / 2, height - pad.bottom - barHeight, barWidth, barHeight);
+      });
+
+      ctx.beginPath();
+      state.points.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(x(index), y(point.close));
+        else ctx.lineTo(x(index), y(point.close));
+      });
+      ctx.strokeStyle = '#087f5b';
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      ctx.fillStyle = '#738078';
+      ctx.fillText('成交量', 4, volumeTop + 12);
+      ctx.textAlign = 'left';
+      ctx.fillText(state.points[0].time.slice(0, 10), pad.left, height - 4);
+      ctx.textAlign = 'right';
+      ctx.fillText(state.points.at(-1).time.slice(0, 10), width - pad.right, height - 4);
+      ctx.textAlign = 'left';
+    }
+
+    async function init() {
+      try {
+        const response = await fetch('data/manifest.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.manifest = await response.json();
+        document.querySelector('#file-count').textContent = number.format(state.manifest.file_count);
+        document.querySelector('#record-count').textContent = compact.format(state.manifest.record_count);
+        document.querySelector('#archive-size').textContent = bytes(state.manifest.total_bytes);
+        document.querySelector('#data-through').textContent = state.manifest.date_range.end;
+        renderCatalog();
+        const ticker = location.hash.slice(1).toUpperCase();
+        const item = state.manifest.files.find(file => file.ticker === ticker);
+        if (item) loadTicker(item);
+      } catch (error) {
+        document.querySelector('#result-count').textContent =
+          `無法載入 data/manifest.json：${error.message}。本機預覽請使用 HTTP server。`;
+      }
+    }
+
+    document.querySelector('#search').addEventListener('input', renderCatalog);
+    document.querySelector('#frequency').addEventListener('change', renderCatalog);
+    window.addEventListener('resize', drawChart);
+    init();
+  </script>
+</body>
+</html>
